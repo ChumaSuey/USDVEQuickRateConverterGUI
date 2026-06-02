@@ -75,8 +75,11 @@ def fetch_all_bcv_history(currency="dolares"):
             current_date += datetime.timedelta(days=1)
             
         return filled_records
+    except requests.exceptions.RequestException as e:
+        print(f"Error de red (Sin Internet o API caída): {e}")
+        return []
     except Exception as e:
-        print(f"Error general de red o procesamiento: {e}")
+        print(f"Error general de procesamiento: {e}")
         return []
 
 
@@ -292,8 +295,9 @@ class BcvDashboardApp:
         self.all_historical_records = fetch_all_bcv_history(currency=self.current_currency)
         
         if not self.all_historical_records:
-            messagebox.showerror("Error", "No se pudieron obtener o rellenar las tasas históricas.")
-            self.lbl_main_rate.config(text="Error de Red")
+            messagebox.showerror("Sin Conexión a Internet", "No se pudo conectar con el servidor de tasas.\n\nPor favor, verifica que tu computadora esté conectada a internet o que la señal sea estable e inténtalo de nuevo.")
+            self.lbl_main_rate.config(text="Desconectado (Sin Red)", fg="#f38ba8")
+            self.lbl_status_date.config(text="Conexión fallida.", fg="#f38ba8")
             return
             
         self.reset_to_default_view()
