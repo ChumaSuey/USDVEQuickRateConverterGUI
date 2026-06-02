@@ -34,9 +34,9 @@ def format_currency_ve(value):
 # ==========================================
 # 1. CAPA DE DATOS (Con Relleno Inteligente de Calendario)
 # ==========================================
-def fetch_all_bcv_history():
+def fetch_all_bcv_history(currency="dolares"):
     """Busca el histórico de la base de datos de la API y aplica Smart Fill a las brechas."""
-    url = "https://ve.dolarapi.com/v1/historicos/dolares/oficial"
+    url = f"https://ve.dolarapi.com/v1/historicos/{currency}/oficial"
     try:
         response = requests.get(url, timeout=12)
         response.raise_for_status()
@@ -94,6 +94,7 @@ class BcvDashboardApp:
         self.current_view_records = []
         self.is_filtered_view = False
         self.selected_month_year_str = ""
+        self.current_currency = "dolares"
 
         self.months_map = {
             "Enero": "01", "Febrero": "02", "Marzo": "03", "Abril": "04",
@@ -170,8 +171,14 @@ class BcvDashboardApp:
         self.lbl_metric_var.pack(pady=(0,10))
 
     def create_filter_bar(self):
-        filter_frame = tk.LabelFrame(self.root, text=" 🔍 Filtro de Calendario Continuo ", font=("Segoe UI", 9, "bold"), fg="#bac2de", bg="#1e1e2e", bd=1, relief="groove")
+        filter_frame = tk.LabelFrame(self.root, text=" 🔍 Filtros y Calendario Continuo ", font=("Segoe UI", 9, "bold"), fg="#bac2de", bg="#1e1e2e", bd=1, relief="groove")
         filter_frame.pack(fill="x", padx=15, pady=10, ipady=5)
+        
+        tk.Label(filter_frame, text="Moneda:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(15, 2))
+        self.combo_currency = ttk.Combobox(filter_frame, values=["USD - Dólar", "EUR - Euro"], width=12, state="readonly")
+        self.combo_currency.pack(side="left", padx=(0, 15))
+        self.combo_currency.set("USD - Dólar")
+        self.combo_currency.bind("<<ComboboxSelected>>", self.on_currency_change)
         
         tk.Label(filter_frame, text="Mes:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(15, 5))
         self.combo_month = ttk.Combobox(filter_frame, values=list(self.months_map.keys()), width=12, state="readonly")
@@ -257,9 +264,17 @@ class BcvDashboardApp:
         self.lbl_status_date.config(text=f"✅ ¡{clean_rate} Copiado!", fg="#a6e3a1")
         self.root.after(2000, lambda: self.lbl_status_date.config(text=old_text, fg="#a6adc8"))
 
+    def on_currency_change(self, event=None):
+        selection = self.combo_currency.get()
+        if "EUR" in selection:
+            self.current_currency = "euros"
+        else:
+            self.current_currency = "dolares"
+        self.load_api_data_first_time()
+
     def load_api_data_first_time(self):
         self.lbl_status_date.config(text="Procesando Base de Datos...", fg="#a6adc8")
-        self.all_historical_records = fetch_all_bcv_history()
+        self.all_historical_records = fetch_all_bcv_history(currency=self.current_currency)
         
         if not self.all_historical_records:
             messagebox.showerror("Error", "No se pudieron obtener o rellenar las tasas históricas.")
@@ -274,7 +289,8 @@ class BcvDashboardApp:
         
         # Muestra el último registro oficial vivo
         live_baseline = [r for r in self.all_historical_records if not r["is_filled"]][-1]
-        self.lbl_main_rate.config(text=f"1 USD = {format_currency_ve(live_baseline['rate'])} Bs.")
+        currency_sym = "USD" if getattr(self, "current_currency", "dolares") == "dolares" else "EUR"
+        self.lbl_main_rate.config(text=f"1 {currency_sym} = {format_currency_ve(live_baseline['rate'])} Bs.")
         self.lbl_status_date.config(text=f"Últimos 30 Días Corridos (Tasa Activa: {live_baseline['date']})", fg="#a6adc8")
         
         self.render_records_to_ui()
@@ -338,7 +354,8 @@ class BcvDashboardApp:
             self.export_to_csv()
 
     def export_to_xlsx(self):
-        default_name = f"Calendario_Continuo_BCV_{self.selected_month_year_str}.xlsx" if self.is_filtered_view else "Calendario_Continuo_BCV_30_Dias.xlsx"
+        cur_code = "USD" if getattr(self, "current_currency", "dolares") == "dolares" else "EUR"
+        default_name = f"Calendario_Continuo_BCV_{cur_code}_{self.selected_month_year_str}.xlsx" if self.is_filtered_view else f"Calendario_Continuo_BCV_{cur_code}_30_Dias.xlsx"
         
         file_path = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
@@ -409,7 +426,8 @@ class BcvDashboardApp:
             messagebox.showerror("Error de guardado", f"No se pudo escribir el archivo:\n{e}")
 
     def export_to_csv(self):
-        default_name = f"Calendario_BCV_{self.selected_month_year_str}.csv" if self.is_filtered_view else "Calendario_BCV_30_Dias.csv"
+        cur_code = "USD" if getattr(self, "current_currency", "dolares") == "dolares" else "EUR"
+        default_name = f"Calendario_BCV_{cur_code}_{self.selected_month_year_str}.csv" if self.is_filtered_view else f"Calendario_BCV_{cur_code}_30_Dias.csv"
         file_path = filedialog.asksaveasfilename(
             defaultextension=".csv", filetypes=[("Archivos CSV", "*.csv")], title="Guardar tasas (CSV)", initialfile=default_name
         )
