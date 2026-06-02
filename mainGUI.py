@@ -189,35 +189,35 @@ class BcvDashboardApp:
         filter_frame = tk.LabelFrame(self.root, text=" 🔍 Filtros y Calendario Continuo ", font=("Segoe UI", 9, "bold"), fg="#bac2de", bg="#1e1e2e", bd=1, relief="groove")
         filter_frame.pack(fill="x", padx=15, pady=10, ipady=5)
         
-        tk.Label(filter_frame, text="Moneda:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(15, 2))
-        self.combo_currency = ttk.Combobox(filter_frame, values=["USD - Dólar", "EUR - Euro"], width=12, state="readonly")
-        self.combo_currency.pack(side="left", padx=(0, 15))
+        tk.Label(filter_frame, text="Moneda:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(5, 2))
+        self.combo_currency = ttk.Combobox(filter_frame, values=["USD - Dólar", "EUR - Euro"], width=11, state="readonly")
+        self.combo_currency.pack(side="left", padx=(0, 5))
         self.combo_currency.set("USD - Dólar")
         self.combo_currency.bind("<<ComboboxSelected>>", self.on_currency_change)
         
-        tk.Label(filter_frame, text="Mes:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(15, 5))
-        self.combo_month = ttk.Combobox(filter_frame, values=list(self.months_map.keys()), width=12, state="readonly")
-        self.combo_month.pack(side="left", padx=5)
+        tk.Label(filter_frame, text="Mes:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(5, 2))
+        self.combo_month = ttk.Combobox(filter_frame, values=list(self.months_map.keys()), width=10, state="readonly")
+        self.combo_month.pack(side="left", padx=2)
         self.combo_month.set("Mayo")
         
-        tk.Label(filter_frame, text="Año:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(15, 5))
-        self.combo_year = ttk.Combobox(filter_frame, values=["2024", "2025", "2026"], width=8, state="readonly")
-        self.combo_year.pack(side="left", padx=5)
+        tk.Label(filter_frame, text="Año:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(5, 2))
+        self.combo_year = ttk.Combobox(filter_frame, values=["2024", "2025", "2026"], width=6, state="readonly")
+        self.combo_year.pack(side="left", padx=2)
         self.combo_year.set("2026")
         
         btn_filter = tk.Button(
-            filter_frame, text="Filtrar Mes", font=("Segoe UI", 9, "bold"),
-            bg="#89b4fa", fg="#11111b", activebackground="#b4befe", bd=0, padx=12, cursor="hand2",
+            filter_frame, text="Filtrar", font=("Segoe UI", 9, "bold"),
+            bg="#89b4fa", fg="#11111b", activebackground="#b4befe", bd=0, padx=8, cursor="hand2",
             command=self.apply_monthly_filter
         )
-        btn_filter.pack(side="left", padx=15)
+        btn_filter.pack(side="left", padx=8)
         
         btn_reset = tk.Button(
             filter_frame, text="Ver Últimos 30 Días", font=("Segoe UI", 9),
-            bg="#45475a", fg="#cdd6f4", activebackground="#585b70", bd=0, padx=10, cursor="hand2",
+            bg="#45475a", fg="#cdd6f4", activebackground="#585b70", bd=0, padx=8, cursor="hand2",
             command=self.reset_to_default_view
         )
-        btn_reset.pack(side="right", padx=15)
+        btn_reset.pack(side="right", padx=5)
 
     def create_data_table(self):
         table_frame = tk.Frame(self.root, bg="#1e1e2e")
