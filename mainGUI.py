@@ -87,7 +87,22 @@ class BcvDashboardApp:
     def __init__(self, root):
         self.root = root
         self.root.title("BCV Dollar Tracker - Contabilidad Profesional")
-        self.root.geometry("710x700")
+        
+        # Resolución adaptativa para pantallas pequeñas (Responsive window sizing)
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        
+        # Calcula el ancho y alto ideales (80% de la pantalla, con un tope de 710x700)
+        app_width = min(710, int(screen_width * 0.85))
+        app_height = min(700, int(screen_height * 0.85))
+        
+        # Centrar la ventana dinámicamente
+        x = int((screen_width / 2) - (app_width / 2))
+        y = int((screen_height / 2) - (app_height / 2))
+        
+        self.root.geometry(f"{app_width}x{app_height}+{x}+{y}")
+        self.root.minsize(600, 450)  # Evita que se encoja demasiado y rompa la UI
+        
         self.root.configure(bg="#1e1e2e")
         
         self.all_historical_records = []
