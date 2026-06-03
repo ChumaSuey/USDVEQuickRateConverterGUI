@@ -1,4 +1,5 @@
 import requests
+from backend import format_currency_ve, fetch_all_bcv_history
 
 def get_bcv_monthly_data():
     # Endpoint for official historical data

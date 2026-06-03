@@ -1,8 +1,10 @@
 import csv
+import datetime  # Añadido para automatizar las fechas por defecto
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import requests
-import datetime
+
+# Importación de la capa de datos y formato desde el backend modular
+from backend import format_currency_ve, fetch_all_bcv_history
 
 try:
     import openpyxl
@@ -13,79 +15,6 @@ except ImportError:
     OPENPYXL_AVAILABLE = False
 
 
-# ==========================================
-# FUNCIÓN AUXILIAR DE FORMATO CONTABLE
-# ==========================================
-def format_currency_ve(value):
-    """
-    Formatea un float al estándar contable venezolano/español:
-    Puntos para miles, comas para decimales, redondeado exactamente a 2 dígitos.
-    Ejemplo: 400.545645 -> "400,55"
-             1234.56    -> "1.234,56"
-    """
-    if value is None:
-        return "--,--"
-    # Redondea a 2 decimales usando el formato estándar (coma en miles, punto en decimal)
-    s = f"{value:,.2f}"
-    # Intercambia los separadores de forma segura para el estándar local
-    return s.replace(',', 'X').replace('.', ',').replace('X', '.')
-
-
-# ==========================================
-# 1. CAPA DE DATOS (Con Relleno Inteligente de Calendario)
-# ==========================================
-def fetch_all_bcv_history(currency="dolares"):
-    """Busca el histórico de la base de datos de la API y aplica Smart Fill a las brechas."""
-    url = f"https://ve.dolarapi.com/v1/historicos/{currency}/oficial"
-    try:
-        response = requests.get(url, timeout=12)
-        response.raise_for_status()
-        historical_data = response.json()
-        
-        cleaned_records = []
-        for record in historical_data:
-            date = record.get("fecha", "")[:10]
-            rate = record.get("promedio") or record.get("precio") or record.get("valor")
-            if date and rate:
-                cleaned_records.append({"date": date, "rate": float(rate)})
-        
-        if not cleaned_records:
-            return []
-            
-        # Ordenamiento cronológico de registros base
-        cleaned_records.sort(key=lambda x: x["date"])
-        
-        # MOTOR SMART FILL: Une fines de semana y feriados bancarios de forma programática
-        raw_map = {r["date"]: r["rate"] for r in cleaned_records}
-        start_date = datetime.date.fromisoformat(cleaned_records[0]["date"])
-        end_date = datetime.date.fromisoformat(cleaned_records[-1]["date"])
-        
-        filled_records = []
-        current_date = start_date
-        last_known_rate = cleaned_records[0]["rate"]
-        
-        while current_date <= end_date:
-            date_str = current_date.isoformat()
-            if date_str in raw_map:
-                last_known_rate = raw_map[date_str]
-                filled_records.append({"date": date_str, "rate": last_known_rate, "is_filled": False})
-            else:
-                # Arrastra la tasa oficial del día hábil anterior legalmente activa
-                filled_records.append({"date": date_str, "rate": last_known_rate, "is_filled": True})
-            current_date += datetime.timedelta(days=1)
-            
-        return filled_records
-    except requests.exceptions.RequestException as e:
-        print(f"Error de red (Sin Internet o API caída): {e}")
-        return []
-    except Exception as e:
-        print(f"Error general de procesamiento: {e}")
-        return []
-
-
-# ==========================================
-# 2. CAPA DE PRESENTACIÓN DE LA INTERFAZ (GUI)
-# ==========================================
 class BcvDashboardApp:
     def __init__(self, root):
         self.root = root
@@ -95,7 +24,6 @@ class BcvDashboardApp:
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
         
-        # Calcula el ancho y alto ideales (80% de la pantalla, con un tope de 710x700)
         app_width = min(710, int(screen_width * 0.85))
         app_height = min(700, int(screen_height * 0.85))
         
@@ -105,7 +33,6 @@ class BcvDashboardApp:
         
         self.root.geometry(f"{app_width}x{app_height}+{x}+{y}")
         self.root.minsize(600, 450)  # Evita que se encoja demasiado y rompa la UI
-        
         self.root.configure(bg="#1e1e2e")
         
         self.all_historical_records = []
@@ -199,14 +126,18 @@ class BcvDashboardApp:
         self.combo_currency.bind("<<ComboboxSelected>>", self.on_currency_change)
         
         tk.Label(filter_frame, text="Mes:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(5, 2))
-        self.combo_month = ttk.Combobox(filter_frame, values=list(self.months_map.keys()), width=10, state="readonly")
+        months_list = list(self.months_map.keys())
+        self.combo_month = ttk.Combobox(filter_frame, values=months_list, width=10, state="readonly")
         self.combo_month.pack(side="left", padx=2)
-        self.combo_month.set("Mayo")
         
         tk.Label(filter_frame, text="Año:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="left", padx=(5, 2))
         self.combo_year = ttk.Combobox(filter_frame, values=["2024", "2025", "2026"], width=6, state="readonly")
         self.combo_year.pack(side="left", padx=2)
-        self.combo_year.set("2026")
+        
+        # --- ASIGNACIÓN DINÁMICA DE FECHA ACTUAL ---
+        now = datetime.datetime.now()
+        self.combo_month.set(months_list[now.month - 1])  # Determina el mes actual en base a índice 0
+        self.combo_year.set(str(now.year))               # Determina el año actual
         
         btn_filter = tk.Button(
             filter_frame, text="Filtrar", font=("Segoe UI", 9, "bold"),
@@ -245,12 +176,11 @@ class BcvDashboardApp:
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        # Configuración de color tenue para registros autocompletados (feriados/fds)
         self.tree.tag_configure("filled", foreground="#6c7086")
-        
         self.tree.bind("<Double-1>", self.copy_rate_to_clipboard)
 
     def create_footer_controls(self):
+        """Genera los controles inferiores incluyendo el selector directo de formato en el GUI."""
         footer = tk.Frame(self.root, bg="#1e1e2e")
         footer.pack(fill="x", padx=15, pady=15)
         
@@ -261,19 +191,32 @@ class BcvDashboardApp:
         )
         btn_refresh.pack(side="left")
         
+        # --- OPCIONES DE CONFIGURACIÓN DIRECTA EN EL PANEL ---
         btn_export = tk.Button(
-            footer, text="📊 Exportar Calendario Continuo", font=("Segoe UI", 10, "bold"),
+            footer, text="📊 Exportar Reporte", font=("Segoe UI", 10, "bold"),
             bg="#a6e3a1", fg="#11111b", activebackground="#94e2d5", bd=0, padx=20, pady=8, cursor="hand2",
             command=self.export_data
         )
         btn_export.pack(side="right")
+
+        self.combo_format = ttk.Combobox(footer, values=["Excel (.xlsx)", "CSV (.csv)"], width=13, state="readonly")
+        self.combo_format.pack(side="right", padx=10, ipady=3)
+        
+        # Validación en tiempo de diseño si openpyxl está presente en el entorno ejecutor
+        if OPENPYXL_AVAILABLE:
+            self.combo_format.set("Excel (.xlsx)")
+        else:
+            self.combo_format.set("CSV (.csv)")
+            self.combo_format.config(state="disabled") # Bloqueo seguro preventiva contra fallos
+
+        tk.Label(footer, text="Formato:", font=("Segoe UI", 10), fg="#cdd6f4", bg="#1e1e2e").pack(side="right")
 
     def copy_rate_to_clipboard(self, event):
         selected_item = self.tree.selection()
         if not selected_item: return
             
         row_values = self.tree.item(selected_item[0], "values")
-        clean_rate = row_values[1].split()[0] # Corta limpiamente el sufijo de texto decorativo
+        clean_rate = row_values[1].split()[0]
         
         self.root.clipboard_clear()
         self.root.clipboard_append(clean_rate)
@@ -295,7 +238,7 @@ class BcvDashboardApp:
         self.all_historical_records = fetch_all_bcv_history(currency=self.current_currency)
         
         if not self.all_historical_records:
-            messagebox.showerror("Sin Conexión a Internet", "No se pudo conectar con el servidor de tasas.\n\nPor favor, verifica que tu computadora esté conectada a internet o que la señal sea estable e inténtalo de nuevo.")
+            messagebox.showerror("Sin Conexión a Internet", "No se pudo conectar con el servidor de tasas.\n\nPor favor, verifica la red.")
             self.lbl_main_rate.config(text="Desconectado (Sin Red)", fg="#f38ba8")
             self.lbl_status_date.config(text="Conexión fallida.", fg="#f38ba8")
             return
@@ -306,7 +249,6 @@ class BcvDashboardApp:
         self.is_filtered_view = False
         self.current_view_records = self.all_historical_records[-30:]
         
-        # Muestra el último registro oficial vivo
         live_baseline = [r for r in self.all_historical_records if not r["is_filled"]][-1]
         currency_sym = "USD" if getattr(self, "current_currency", "dolares") == "dolares" else "EUR"
         self.lbl_main_rate.config(text=f"1 {currency_sym} = {format_currency_ve(live_baseline['rate'])} Bs.")
@@ -351,11 +293,9 @@ class BcvDashboardApp:
         self.lbl_metric_low.config(text=f"{format_currency_ve(low_val)} Bs.")
         self.lbl_metric_high.config(text=f"{format_currency_ve(high_val)} Bs.")
         
-        # Modifica el porcentaje para usar comas en sus decimales también
         self.lbl_metric_var.config(text=f"{pct_change:+.2f}%".replace('.', ','))
         self.lbl_metric_var.config(fg="#f38ba8" if pct_change > 0 else "#a6e3a1")
         
-        # Insertar registros en el Treeview con formato de 2 decimales y comas
         for r in reversed(self.current_view_records):
             if r["is_filled"]:
                 self.tree.insert("", "end", values=(r["date"], f"{format_currency_ve(r['rate'])} Bs. (Feriado/FDS)"), tags=("filled",))
@@ -363,11 +303,14 @@ class BcvDashboardApp:
                 self.tree.insert("", "end", values=(r["date"], f"{format_currency_ve(r['rate'])} Bs."))
 
     def export_data(self):
+        """Lee la configuración seleccionada en el GUI para el guardado inmediato."""
         if not self.current_view_records:
             messagebox.showwarning("Sin datos", "No hay información para exportar.")
             return
 
-        if OPENPYXL_AVAILABLE:
+        selected_format = self.combo_format.get()
+        
+        if "Excel" in selected_format:
             self.export_to_xlsx()
         else:
             self.export_to_csv()
@@ -390,7 +333,6 @@ class BcvDashboardApp:
             ws.title = "Calendario Continuo"
             ws.views.sheetView[0].showGridLines = True
             
-            # Estilos de Excel
             header_fill = PatternFill(start_color="1F385C", end_color="1F385C", fill_type="solid")
             filled_row_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
             
@@ -410,7 +352,6 @@ class BcvDashboardApp:
                 cell = ws.cell(row=1, column=col_num)
                 cell.fill = header_fill; cell.font = header_font; cell.alignment = center_align
             
-            # Exportar registros con redondeo estricto a 2 decimales numéricos
             for record in self.current_view_records:
                 ws.append([record["date"], round(record["rate"], 2)])
                 row_idx = ws.max_row
@@ -420,7 +361,6 @@ class BcvDashboardApp:
                 
                 cell_rate = ws.cell(row=row_idx, column=2)
                 cell_rate.alignment = right_align; cell_rate.border = thin_border
-                # El formato '#,##0.00' le dice a Excel que aplique 2 decimales usando el separador local del sistema
                 cell_rate.number_format = '#,##0.00'
                 
                 if record["is_filled"]:
@@ -430,7 +370,6 @@ class BcvDashboardApp:
                     cell_date.font = data_font
                     cell_rate.font = data_font
             
-            # Ajuste automático de ancho de columnas usando el nuevo formato de comas
             for col in ws.columns:
                 max_len = 0
                 col_letter = get_column_letter(col[0].column)
@@ -440,7 +379,7 @@ class BcvDashboardApp:
                 ws.column_dimensions[col_letter].width = max(max_len + 6, 16)
                 
             wb.save(file_path)
-            messagebox.showinfo("Éxito", "¡Libro de Excel creado Impecablemente!\nSe han rellenado todos los días calendario sin saltos.")
+            messagebox.showinfo("Éxito", "¡Libro de Excel creado impecablemente!")
         except Exception as e:
             messagebox.showerror("Error de guardado", f"No se pudo escribir el archivo:\n{e}")
 
@@ -456,7 +395,6 @@ class BcvDashboardApp:
                 writer = csv.writer(file)
                 writer.writerow(["Fecha", "Tasa BCV (Bs.)"])
                 for record in self.current_view_records:
-                    # Al escribir con comas, el csv.writer pondrá comillas automáticamente si es necesario para evitar romper columnas
                     writer.writerow([record["date"], format_currency_ve(record["rate"])])
             messagebox.showinfo("Éxito (CSV)", "Guardado como CSV con calendario continuo.")
         except Exception as e:
