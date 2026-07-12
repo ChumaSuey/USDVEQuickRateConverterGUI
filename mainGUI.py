@@ -18,7 +18,7 @@ except ImportError:
 class BcvDashboardApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("BCV Dollar Tracker - Contabilidad Profesional")
+        self.root.title("BCV Dollar Tracker - Contabilidad")
 
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
