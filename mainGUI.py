@@ -504,6 +504,12 @@ class BcvDashboardApp:
 
 
 if __name__ == "__main__":
+    try:
+        from ctypes import windll
+        windll.shcore.SetProcessDpiAwareness(1)
+    except Exception:
+        pass
+
     app_window = tk.Tk()
     app = BcvDashboardApp(app_window)
     app_window.mainloop()
