@@ -23,14 +23,14 @@ class BcvDashboardApp:
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
 
-        app_width = min(710, int(screen_width * 0.85))
+        app_width = min(850, int(screen_width * 0.90))
         app_height = min(700, int(screen_height * 0.85))
 
         x = int((screen_width / 2) - (app_width / 2))
         y = int((screen_height / 2) - (app_height / 2))
 
         self.root.geometry(f"{app_width}x{app_height}+{x}+{y}")
-        self.root.minsize(600, 450)
+        self.root.minsize(750, 450)
         self.root.configure(bg="#1e1e2e")
 
         self.all_historical_records = []
